@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import joblib
 
+
 # Load model and columns
 model = joblib.load("../models/churn_model.pkl")
 model_columns = joblib.load("../models/model_columns.pkl")
