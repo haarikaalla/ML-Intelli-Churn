@@ -4,8 +4,9 @@ import joblib
 
 
 # Load model and columns
-model = joblib.load("../models/churn_model.pkl")
-model_columns = joblib.load("../models/model_columns.pkl")
+model = joblib.load("models/churn_model.pkl")
+model_columns = joblib.load("models/model_columns.pkl")
+
 
 st.title("📉 Customer Churn Prediction App")
 
