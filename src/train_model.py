@@ -1,6 +1,15 @@
 import pandas as pd
 import os
-import joblib   # ✅ THIS LINE WAS MISSING
+import joblib
+import mlflow
+import mlflow.sklearn
+
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+
+#  Set MLflow experiment
+mlflow.set_experiment("Churn_Prediction")
 
 # 🔹 Load dataset
 df = pd.read_csv("data/WA_Fn-UseC_-Telco-Customer-Churn.csv")
@@ -15,40 +24,46 @@ df["TotalCharges"] = df["TotalCharges"].fillna(df["TotalCharges"].median())
 # 🔹 Target column
 df["Churn"] = df["Churn"].map({"No": 0, "Yes": 1})
 
-# Split features & target
+# 🔹 Split features & target
 X = df.drop("Churn", axis=1)
 y = df["Churn"]
 
-# Encoding
+# 🔹 Encoding
 X = pd.get_dummies(X, drop_first=True)
 
-# Train test split
-from sklearn.model_selection import train_test_split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# 🔹 Train test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
 
-# Logistic Regression
-from sklearn.linear_model import LogisticRegression
-model = LogisticRegression(max_iter=5000)
-model.fit(X_train, y_train)
+#  TRAIN + LOG WITH MLFLOW
+with mlflow.start_run():
 
-# Metrics
-from sklearn.metrics import accuracy_score
-print("Accuracy:", accuracy_score(y_test, model.predict(X_test)))
+    model = LogisticRegression(max_iter=5000)
+    model.fit(X_train, y_train)
 
-# ✅ Create models folder
+    preds = model.predict(X_test)
+    acc = accuracy_score(y_test, preds)
+
+    print("Accuracy:", acc)
+
+    # MLflow logging
+    mlflow.log_param("model_type", "LogisticRegression")
+    mlflow.log_metric("accuracy", acc)
+    mlflow.sklearn.log_model(model, "churn-model")
+
+# Create models folder
 os.makedirs("models", exist_ok=True)
 
-# ✅ Save model
+#  Save model
 joblib.dump(model, "models/churn_model.pkl")
 
-# ✅ Save column structure
+#  Save column structure
 joblib.dump(X.columns.tolist(), "models/model_columns.pkl")
 
 print("Model and columns saved successfully!")
 
-import matplotlib.pyplot as plt
-import pandas as pd
-
+# 🔹 Feature importance (coefficients)
 importance = model.coef_[0]
 features = X.columns
 
