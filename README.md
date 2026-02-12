@@ -2,7 +2,7 @@
 ML-Intelli-Churn is a full-stack, production-ready machine learning project designed to predict customer churn in the telecom sector. 
 It demonstrates an end-to-end ML pipeline, including feature storage, model training, API deployment, and containerization, 
 showcasing skills in modern ML engineering practices.
-
+Data → Features → Model → API → Container → Monitoring → Retraining
 # Features / Highlights
 - Data Cleaning & Preprocessing: Handling missing values, encoding categorical features.
 - Feature Store: Using Feast to maintain consistent features for training and inference.
