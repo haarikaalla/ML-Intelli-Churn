@@ -1,0 +1,10 @@
+
+import mlflow.pyfunc
+import pickle
+
+# Load original MLflow folder
+model = mlflow.pyfunc.load_model("path_to_mlflow_model_folder")
+
+# Save as plain pickle
+with open("models/churn_model_plain.pkl", "wb") as f:
+    pickle.dump(model, f)

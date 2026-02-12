@@ -1,14 +1,15 @@
-import streamlit as st
+import streamlit as st 
 import pandas as pd
-import mlflow.pyfunc
+import pickle
 import joblib
 
-# 🔹 Load model from MLflow Registry
-model = mlflow.pyfunc.load_model("models:/Churn_Prediction_Model@production")
+# Load model using joblib
+model = joblib.load("models/churn_model.pkl")
 
+# Load columns (still with pickle)
+with open("models/model_columns.pkl", "rb") as f:
+    model_columns = pickle.load(f)
 
-# 🔹 Load column structure
-model_columns = joblib.load("models/model_columns.pkl")
 
 st.title("📊 Customer Churn Prediction App")
 st.write("Enter customer details to predict churn")
