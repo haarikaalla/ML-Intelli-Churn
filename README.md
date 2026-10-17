@@ -1,27 +1,30 @@
-# ML-IntelliChurn
-ML-Intelli-Churn is a full-stack, production-ready machine learning project designed to predict customer churn in the telecom sector. 
-It demonstrates an end-to-end ML pipeline, including feature storage, model training, API deployment, and containerization, 
-showcasing skills in modern ML engineering practices.
-Data → Features → Model → API → Container → Monitoring → Retraining
-# LIVE Customer Churn Prediction App - https://ml-intelli-churn.streamlit.app/
-# Features / Highlights
-- Data Cleaning & Preprocessing: Handling missing values, encoding categorical features.
-- Feature Store: Using Feast to maintain consistent features for training and inference.
-- Model Training: Scikit-learn / XGBoost with MLflow for logging and versioning.
-- Model Registry: Track versions and mark “Production” models.
-- Prediction API: FastAPI endpoint to receive input and return predictions.
-- Containerization: Dockerized for easy deployment anywhere.
-- Ready for Monitoring & Drift Detection (Evidently AI) and Automated Retraining (Airflow) for future upgrades.
+# IntelliChurn — reproducible churn intelligence service
 
-# Dataset: Telco Customer Churn (Kaggle)
-Link: https://www.kaggle.com/blastchar/telco-customer-churn
+IntelliChurn is now a real train-to-serve ML system rather than a notebook-style
+demo. A single scikit-learn pipeline owns imputation, scaling, categorical encoding
+and classification, eliminating training/serving skew. The service reports decision
+metrics suitable for imbalanced churn data and exposes validated inference through
+a versioned FastAPI contract.
 
-# Screenshots
+## What is implemented
 
-Include images of:
-Streamlit UI
-MLflow dashboard
-Docker running
+- strict input and dataset contracts;
+- stratified evaluation with ROC-AUC, PR-AUC, precision, recall, F1 and calibration;
+- one serialized preprocessing/model pipeline;
+- validated `/v1/predict` and health endpoints;
+- population-stability-index drift utility;
+- synthetic, deterministic tests that require no private dataset;
+- packaging, Docker and GitHub Actions CI.
 
-This project is a showcase of full-stack ML engineering: building, versioning, deploying, and preparing models for production, 
-helping companies proactively retain customers and reduce churn.
+## Train and run
+
+```bash
+python -m pip install -e '.[dev]'
+intelli-churn-train data/WA_Fn-UseC_-Telco-Customer-Churn.csv
+uvicorn intelli_churn.api:app --reload
+pytest
+```
+
+Raw datasets, local environments, MLflow databases and generated model artifacts are
+intentionally excluded from Git. Production evolution should add an artifact registry,
+scheduled drift jobs, model approval gates and an out-of-time validation dataset.
