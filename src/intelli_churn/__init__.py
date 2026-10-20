@@ -1,5 +1,3 @@
 """IntelliChurn production-oriented ML package."""
 
-from .training import train_and_evaluate
-
-__all__ = ["train_and_evaluate"]
+__version__ = "2.0.0"

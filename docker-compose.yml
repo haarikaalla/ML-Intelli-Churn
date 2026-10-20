@@ -1,0 +1,24 @@
+services:
+  api:
+    build:
+      context: .
+      target: runtime
+    environment:
+      MODEL_REGISTRY: /app/artifacts/registry
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./artifacts:/app/artifacts:ro
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: .
+      target: dashboard
+    environment:
+      API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    restart: unless-stopped

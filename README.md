@@ -1,120 +1,109 @@
 # IntelliChurn
 
-**A reproducible machine-learning platform for training, serving, and monitoring telecom customer-churn predictions.**
+### Production-minded customer-retention intelligence, from validated data to monitored decisions
 
 [![CI](https://github.com/haarikaalla/ML-Intelli-Churn/actions/workflows/ci.yml/badge.svg)](https://github.com/haarikaalla/ML-Intelli-Churn/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-1.6%2B-F7931E?logo=scikitlearn&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688?logo=fastapi&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-IntelliChurn converts a notebook-style churn experiment into an end-to-end ML system. A single scikit-learn pipeline owns preprocessing and classification, the training workflow reports decision-relevant metrics, a typed FastAPI service exposes predictions, and a population stability index utility provides a foundation for drift monitoring.
+IntelliChurn is an end-to-end machine-learning system that ranks telecom customers by churn risk and turns calibrated probabilities into an actionable retention queue. It covers the entire lifecycle: data contracts, quality profiling, domain feature engineering, model comparison, probability calibration, business-cost thresholding, immutable model versions, online and batch inference, drift monitoring, operational metrics, a Streamlit console, tests, CI and containerized delivery.
 
-The project is designed to prevent common ML delivery failures: training-serving skew, hidden preprocessing, invalid input, misleading accuracy on imbalanced data, unreproducible artifacts, and silent feature-distribution changes.
+This is deliberately more than a notebook or prediction page. The same serialized pipeline performs feature engineering at training and serving time, every model carries its lineage and operating threshold, and the API exposes readiness, model-card and Prometheus endpoints suitable for real deployment.
 
-## Business impact
+## Verified benchmark
 
-Customer churn models are useful only when their predictions can drive timely retention actions. IntelliChurn estimates each customer's churn probability from contract, tenure, billing, service, and support features. That score can support:
+The project's original 7,043-row Telco churn dataset was evaluated with a fixed random seed, a 64%/16%/20% stratified train/validation/test design, five-fold model selection on the training split, threshold selection on validation only, and one final evaluation on the untouched test split. The raw CSV is intentionally excluded from the final repository; its SHA-256 lineage prefix and measured report are retained without republishing third-party data.
 
-- prioritizing high-risk customers for retention outreach;
-- tailoring offers by contract and service profile;
-- measuring the precision/recall trade-off before campaign launch;
-- monitoring whether live customer behavior has drifted from training data;
-- versioning the model behind a stable application contract.
+| Held-out result | Value |
+| --- | ---: |
+| ROC-AUC | **0.8478** |
+| PR-AUC | **0.6675** |
+| Recall | **98.66%** |
+| Precision | **35.01%** |
+| Brier score | **0.1343** |
+| Test customers | **1,409** |
+| Selected model | **Calibrated logistic regression** |
 
-The output is a probability and decision label, not an unexplained business guarantee. Teams can adjust the operating threshold according to intervention cost and retention value.
+The cost-aware threshold produced an estimated **90.21% reduction in decision cost** relative to taking no retention action, under the explicit example assumptions of 500 units per missed churner, 15 per contacted customer, and a minimum 45% recall constraint. This is a scenario estimate—not realized revenue or a production guarantee. Change the costs to match an actual business before using the result for decisions. Full reproducible results are stored in [`reports/reference_benchmark.json`](reports/reference_benchmark.json).
 
-## Platform capabilities
+## What problem it solves
 
-| Capability | Implementation | Value |
-| --- | --- | --- |
-| Schema validation | Required feature and target checks | Fails early on incompatible training data |
-| Unified preprocessing | `ColumnTransformer` inside one pipeline | Prevents training-serving transformation drift |
-| Missing-value handling | Median and most-frequent imputers | Makes preprocessing explicit and repeatable |
-| Mixed feature support | Scaling + one-hot encoding | Handles numeric and categorical telecom data |
-| Imbalance-aware model | Class-balanced logistic regression | Gives minority churn cases appropriate weight |
-| Decision metrics | ROC-AUC, PR-AUC, precision, recall, F1, Brier score | Evaluates ranking, actions, and calibration |
-| Typed inference | Pydantic request and response contracts | Rejects malformed production input |
-| Drift signal | Population Stability Index | Detects numeric distribution shifts |
-| Reproducible delivery | Package, Docker, tests, and CI | Makes the system reviewable and deployable |
+A useful churn system must answer more than “will this customer leave?” IntelliChurn answers:
 
-## End-to-end architecture
+- Who should the retention team contact first?
+- How reliable is each probability?
+- Which threshold minimizes the cost of missed churn and unnecessary outreach?
+- Which model won under cross-validation, and why?
+- Which dataset and configuration created the deployed artifact?
+- Has production input drifted away from training conditions?
+- Is the service alive, ready, observable and safe to call in batches?
+
+Each prediction returns a probability, decision, risk band, recommended action, threshold and model version. That makes the output operational and auditable instead of a detached class label.
+
+## Architecture
 
 ```mermaid
 flowchart LR
-    DATA[Telecom training CSV] --> VALIDATE[Schema and label validation]
-    VALIDATE --> SPLIT[Stratified train/test split]
-    SPLIT --> PIPE[scikit-learn Pipeline]
-    PIPE --> PREP[Impute + scale + one-hot encode]
-    PREP --> MODEL[Balanced logistic regression]
-    MODEL --> EVAL[ROC-AUC, PR-AUC, precision, recall, F1, Brier]
-    MODEL --> ARTIFACT[(model.joblib)]
-    ARTIFACT --> API[FastAPI prediction service]
-    CLIENT[Business application] -->|Validated JSON| API
-    LIVE[Live feature samples] --> PSI[Population Stability Index]
+    subgraph Build[Reproducible ML build]
+        A[Telco CSV] --> B[Schema + quality gate]
+        B --> C[Stratified train / validation / test]
+        C --> D[Business feature engineering]
+        D --> E[Impute + scale + one-hot]
+        E --> F{5-fold comparison}
+        F --> G[Logistic regression]
+        F --> H[Random forest]
+        F --> I[Histogram gradient boosting]
+        G & H & I --> J[Best PR-AUC model]
+        J --> K[Sigmoid calibration]
+        K --> L[Cost-aware threshold]
+        L --> M[(Versioned model bundle)]
+    end
+
+    subgraph Serve[Decision serving]
+        M --> N[FastAPI]
+        N --> O[Single prediction]
+        N --> P[Batch prediction]
+        N --> Q[Model card]
+        N --> R[Prometheus metrics]
+        N --> S[Streamlit operations console]
+    end
+
+    subgraph Monitor[Monitoring]
+        M --> T[Training reference profile]
+        U[Current customer data] --> V[PSI + JS divergence]
+        T --> V
+        V --> W[Stable / warning / alert report]
+    end
 ```
 
-### Training-to-serving consistency
+### Training-serving contract
 
-The serialized artifact contains both feature transformations and the classifier. The API loads that exact pipeline and submits a typed feature row to `predict_proba`. No preprocessing is manually duplicated in the serving layer.
+`CustomerFeatureEngineer`, preprocessing and the estimator live inside the model pipeline. The versioned `ModelBundle` also carries the decision threshold, dataset SHA-256 fingerprint, training timestamp, configuration, candidate scores, held-out metrics, feature importance and drift reference profile. The service never recreates training transformations by hand.
 
-## Technology stack
+## Capabilities
 
-### Machine learning
-
-- **pandas 2.2+** — tabular ingestion and validation
-- **NumPy 2.1+** — numerical operations and drift calculations
-- **scikit-learn 1.6+** — preprocessing, logistic regression, stratified evaluation, and metrics
-- **joblib** — pipeline artifact serialization
-
-### API and engineering
-
-- **FastAPI** — versioned inference and health endpoints
-- **Pydantic v2** — strict request constraints and response schema
-- **Uvicorn** — ASGI serving
-- **Hatchling** — Python packaging
-- **pytest** — deterministic training and monitoring tests
-- **Ruff** — linting and quality enforcement
-- **Docker** — reproducible inference image
-- **GitHub Actions** — automated tests and linting
-
-## Model workflow
-
-1. Validate that every required feature and the `Churn` label exist.
-2. Convert `TotalCharges` to numeric form and normalize `Yes`/`No` labels.
-3. Reject missing or single-class targets before training.
-4. Create a reproducible, stratified 80/20 split.
-5. Median-impute and standardize numeric features.
-6. Most-frequent-impute and one-hot encode categorical features.
-7. Train class-balanced logistic regression with a fixed random seed.
-8. Evaluate ranking, classification, and probability calibration.
-9. Save the complete pipeline and metrics as versionable artifacts.
-
-## Evaluation strategy
-
-Plain accuracy can look strong while missing most churners. IntelliChurn reports:
-
-| Metric | Why it matters |
-| --- | --- |
-| ROC-AUC | Overall ranking separation across thresholds |
-| PR-AUC | Performance on the positive churn class under imbalance |
-| Precision | How many targeted customers actually churn |
-| Recall | How many churners the campaign identifies |
-| F1 | Balance between precision and recall |
-| Brier score | Quality and calibration of predicted probabilities |
-| Positive rate | Context for interpreting imbalanced metrics |
-
-No fixed score is advertised because results depend on the supplied dataset and split. Every training run writes its own measured `metrics.json`.
+| Area | Implementation | Engineering value |
+| --- | --- | --- |
+| Data quality | Required fields, numeric coercion, invalid labels, negative-value guard, duplicate IDs, missingness profile | Fails early and reports the condition of each training run |
+| Domain features | spend/tenure ratios, service count, tenure band, contract and fiber indicators | Encodes customer-lifecycle behavior consistently |
+| Model selection | Logistic regression, random forest and histogram gradient boosting with stratified CV | Selects by mean PR-AUC instead of intuition |
+| Calibration | `CalibratedClassifierCV` with sigmoid calibration | Makes risk scores more useful for prioritization |
+| Decision policy | Validation-only threshold search with configurable FP/FN/action costs | Separates model quality from business action policy |
+| Evaluation | ROC-AUC, PR-AUC, precision, recall, F1, Brier, confusion matrix and cost scenario | Covers ranking, minority detection, calibration and impact |
+| Explainability | Held-out permutation importance | Reports model-agnostic global drivers |
+| Registry | Immutable version folders plus atomic `latest` pointer | Supports lineage, pinning and rollback |
+| Serving | Strict Pydantic contracts, single and 500-row batch APIs | Rejects malformed data before inference |
+| Batch operations | CSV-to-CSV retention queue CLI | Supports scheduled business workflows |
+| Drift | PSI for numeric features and Jensen-Shannon divergence for categoricals | Detects input distribution changes across all features |
+| Observability | Request IDs, latency/request/prediction Prometheus metrics, liveness/readiness | Supports production operations |
+| Delivery | Package entry points, non-root multi-stage Docker image, Compose, tests and GitHub Actions | Creates a reproducible review and deployment path |
 
 ## Quick start
 
-### Prerequisites
-
-- Python 3.11+
-- Git
-- A compatible telecom churn CSV
-
-### Install
+### 1. Install
 
 ```bash
 git clone https://github.com/haarikaalla/ML-Intelli-Churn.git
@@ -123,161 +112,177 @@ cd ML-Intelli-Churn
 python -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
 python -m pip install --upgrade pip
-pip install -e '.[dev]'
+pip install -e '.[dev,dashboard]'
 ```
 
-### Train and evaluate
+Python 3.11 or newer is required.
+
+### 2. Train and register a model
 
 ```bash
-intelli-churn-train path/to/telco-churn.csv --output artifacts
+intelli-churn-train path/to/telco-churn.csv
 ```
 
-This creates:
+The command validates the dataset, compares candidates, calibrates the winner, selects the business threshold, evaluates the untouched test set and creates:
 
 ```text
-artifacts/
-├── model.joblib    # fitted preprocessing + classifier pipeline
-└── metrics.json    # evaluation results from the held-out test split
+artifacts/registry/
+├── latest.json
+└── <timestamp>-<data-hash>/
+    ├── model.joblib
+    ├── metadata.json
+    └── training_report.json
 ```
 
-Generated model artifacts and raw datasets are intentionally excluded from Git. This keeps source control small and avoids publishing data that may have licensing or privacy restrictions.
-
-### Serve predictions
+No dataset available? Generate a contract-compatible demo:
 
 ```bash
-MODEL_PATH=artifacts/model.joblib \
-MODEL_VERSION=1.0.0 \
+intelli-churn-demo-data --rows 2500
+intelli-churn-train data/demo_telco_churn.csv
+```
+
+### 3. Start the API
+
+```bash
 uvicorn intelli_churn.api:app --reload
 ```
 
-Open `http://127.0.0.1:8000/docs` for the generated OpenAPI console.
+- OpenAPI: <http://127.0.0.1:8000/docs>
+- readiness: <http://127.0.0.1:8000/health/ready>
+- model card: <http://127.0.0.1:8000/v1/model>
+- Prometheus: <http://127.0.0.1:8000/metrics>
 
-## API reference
+### 4. Open the operations console
+
+```bash
+streamlit run dashboard/app.py
+```
+
+Upload a compatible CSV to score customers, inspect the prioritized high-risk segment and download the full retention queue.
+
+## Prediction API
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
-| `GET` | `/health` | Confirms the model is available and reports its version |
-| `POST` | `/v1/predict` | Returns churn probability, label, and model version |
+| `GET` | `/health/live` | Process liveness; does not require a model |
+| `GET` | `/health/ready` | Confirms the selected model can be loaded |
+| `GET` | `/v1/model` | Model version, evaluation, lineage and top features |
+| `POST` | `/v1/predict` | One validated churn decision |
+| `POST` | `/v1/predict/batch` | Up to 500 validated decisions per request |
+| `POST` | `/v1/monitor/drift` | All-feature drift report for 10–10,000 rows |
+| `GET` | `/metrics` | Prometheus-format service and prediction metrics |
 
-Example request:
+Example:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/v1/predict \
   -H 'Content-Type: application/json' \
   -d '{
-    "gender": "Female",
-    "SeniorCitizen": 0,
-    "Partner": "Yes",
-    "Dependents": "No",
-    "tenure": 8,
-    "PhoneService": "Yes",
-    "MultipleLines": "No",
-    "InternetService": "Fiber optic",
-    "OnlineSecurity": "No",
-    "OnlineBackup": "No",
-    "DeviceProtection": "No",
-    "TechSupport": "No",
-    "StreamingTV": "Yes",
-    "StreamingMovies": "Yes",
-    "Contract": "Month-to-month",
-    "PaperlessBilling": "Yes",
-    "PaymentMethod": "Electronic check",
-    "MonthlyCharges": 94.5,
-    "TotalCharges": 756.0
+    "gender":"Female", "SeniorCitizen":0, "Partner":"No", "Dependents":"No",
+    "tenure":8, "PhoneService":"Yes", "MultipleLines":"No",
+    "InternetService":"Fiber optic", "OnlineSecurity":"No", "OnlineBackup":"No",
+    "DeviceProtection":"No", "TechSupport":"No", "StreamingTV":"Yes",
+    "StreamingMovies":"Yes", "Contract":"Month-to-month",
+    "PaperlessBilling":"Yes", "PaymentMethod":"Electronic check",
+    "MonthlyCharges":94.5, "TotalCharges":756.0
   }'
 ```
 
-Response shape:
+Response:
 
 ```json
 {
-  "churn_probability": 0.734281,
+  "churn_probability": 0.712438,
   "prediction": "churn",
-  "model_version": "1.0.0"
+  "risk_band": "high",
+  "recommended_action": "Route to the retention team for a priority personalized offer.",
+  "decision_threshold": 0.05,
+  "model_version": "20261020.055013-16320c9c"
 }
 ```
 
-The shown probability is illustrative; the deployed model determines the actual value.
+The probability above demonstrates the response contract; live output comes from the loaded model.
+
+## Batch scoring and drift
+
+```bash
+# Produce an enriched retention queue
+intelli-churn-score customers.csv --output outputs/retention_queue.csv
+
+# Compare current traffic with the registered training baseline
+intelli-churn-monitor customers.csv --output outputs/drift_report.json
+```
+
+Numeric PSI status is stable below 0.10, warning from 0.10 and alert from 0.25. Categorical Jensen-Shannon status is stable below 0.05, warning from 0.05 and alert from 0.10. These defaults are operational starting points; production thresholds should be tuned using observed model and business outcomes.
 
 ## Configuration
 
-| Variable | Default | Description |
+| Setting | Default | Purpose |
 | --- | --- | --- |
-| `MODEL_PATH` | `artifacts/model.joblib` | Serialized pipeline loaded by the API |
-| `MODEL_VERSION` | `1.0.0` | Version returned with predictions and health data |
+| `MODEL_REGISTRY` | `artifacts/registry` | Filesystem registry used by the API |
+| `MODEL_VERSION` | `latest` | Immutable version to load, or latest pointer |
+| `MODEL_PATH` | unset | Direct artifact override, useful in managed deployments |
+| `API_URL` | `http://localhost:8000` | API used by the Streamlit console |
+| `--cv-folds` | `5` | Stratified model-selection folds |
+| `--min-recall` | `0.45` | Threshold-search recall floor |
 
-If the artifact is unavailable, the health and prediction endpoints return `503` rather than pretending the service is ready.
+Cost assumptions and randomization are centralized in `TrainingConfig`, making model behavior reproducible and reviewable.
 
-## Drift monitoring
+## Docker deployment
 
-The included `population_stability_index(reference, current)` utility compares a numeric production sample with its training reference distribution using quantile bins and numerical safeguards.
-
-```python
-from intelli_churn.monitoring import population_stability_index
-
-psi = population_stability_index(reference_tenure, current_tenure)
-print({"feature": "tenure", "psi": psi})
-```
-
-PSI is a drift indicator, not proof that model quality has degraded. A production monitor should combine feature drift, prediction drift, delayed labels, business outcomes, and alert thresholds validated for the domain.
-
-## Docker
-
-Train the model into `artifacts/` before building because the image packages the inference artifact:
+Train once on the host, then run the API and dashboard with the artifact mounted read-only:
 
 ```bash
-intelli-churn-train path/to/telco-churn.csv --output artifacts
-docker build -t intelli-churn .
-docker run --rm -p 8000:8000 \
-  -e MODEL_VERSION=1.0.0 \
-  intelli-churn
+intelli-churn-train path/to/telco-churn.csv
+docker compose up --build
 ```
 
-## Quality and testing
+The API runs at port 8000 and the dashboard at port 8501. The API image is multi-stage, uses a dedicated non-root user and includes a liveness health check.
+
+## Testing and CI
 
 ```bash
 ruff check src/intelli_churn tests
-pytest
+pytest --cov=intelli_churn --cov-report=term-missing
+docker build --target runtime -t intelli-churn:test .
 ```
 
-The tests use deterministic synthetic data, so CI requires no private dataset. They verify model training and decision metrics, schema failure behavior, and the ability of PSI to distinguish stable from shifted distributions.
+Tests use deterministic synthetic data and cover schema failure, full training, model registry round trips, prediction contracts, drift detection and API health. GitHub Actions validates Python 3.11 and 3.12, publishes coverage output and verifies the container build.
 
-## Project structure
+## Repository map
 
 ```text
 .
-├── .github/workflows/ci.yml       # lint and test automation
+├── dashboard/app.py                 # retention operations console
+├── reports/reference_benchmark.json # reproducible dataset benchmark
 ├── src/intelli_churn/
-│   ├── api.py                     # inference and health API
-│   ├── contracts.py               # typed request/response schemas
-│   ├── features.py                # feature lists and data validation
-│   ├── monitoring.py              # PSI drift utility
-│   ├── predictor.py               # artifact loading and inference
-│   └── training.py                # reproducible training pipeline
-├── tests/test_training.py         # synthetic end-to-end tests
-├── Dockerfile                     # inference container
-├── pyproject.toml                 # dependencies and package metadata
-└── LICENSE
+│   ├── api.py                       # typed API and observability
+│   ├── artifacts.py                 # versioned model registry
+│   ├── batch.py                     # offline scoring workflow
+│   ├── contracts.py                 # strict request/response models
+│   ├── data_quality.py              # dataset quality report
+│   ├── demo_data.py                 # deterministic demo generator
+│   ├── feature_engineering.py       # domain transformations
+│   ├── features.py                  # feature/data contracts
+│   ├── modeling.py                  # candidates and preprocessing
+│   ├── monitoring.py                # PSI and categorical drift
+│   ├── predictor.py                 # inference boundary
+│   └── training.py                  # selection, calibration and evaluation
+├── tests/                           # unit and integration tests
+├── Dockerfile                       # non-root multi-stage image
+├── docker-compose.yml               # API + console stack
+└── pyproject.toml                   # package and dependency contract
 ```
 
-## Responsible-use notes
+## Responsible ML and limitations
 
-- Predictions should support human decision-making, not automatically penalize customers.
-- Teams should test performance across relevant customer groups and investigate unequal error rates.
-- Feature collection, retention, and activation must follow applicable privacy and consumer-protection requirements.
-- Retraining should require data validation, evaluation gates, artifact lineage, and rollback capability.
-
-## Production roadmap
-
-- model registry, artifact checksums, and lineage metadata;
-- time-based and out-of-time validation;
-- configurable decision thresholds and cost-based evaluation;
-- batch scoring and scheduled drift jobs;
-- authentication, rate limiting, structured logs, and tracing;
-- shadow deployment, approval gates, and automated rollback;
-- outcome monitoring and fairness evaluation;
-- a retention-operations dashboard for prioritized interventions.
+- Churn scores assist a retention team; they should not trigger punitive or irreversible decisions.
+- The example dataset is small and cross-sectional. A real deployment needs temporal/out-of-time evaluation and retraining triggers.
+- Global permutation importance is not a causal explanation and does not prove why an individual customer will churn.
+- Cost estimates depend entirely on the configured assumptions and must be replaced with validated business economics.
+- Teams should evaluate subgroup error rates, consent, data minimization, retention policy and applicable consumer-protection rules before launch.
+- Drift signals show distribution change, not performance loss. Join them with delayed labels, calibration checks and campaign outcomes.
 
 ## License
 
-This project is available under the [MIT License](LICENSE).
+Released under the [MIT License](LICENSE).

@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "intelli-churn"
-version = "1.0.0"
-description = "Reproducible telecom churn training, inference and drift monitoring"
+version = "2.0.0"
+description = "Production-minded churn intelligence platform from data validation to monitored inference"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -16,15 +16,25 @@ dependencies = [
   "numpy>=2.1,<3",
   "pandas>=2.2,<3",
   "pydantic>=2.10,<3",
+  "prometheus-client>=0.21,<1",
   "scikit-learn>=1.6,<2",
   "uvicorn[standard]>=0.34,<1",
 ]
 
 [project.optional-dependencies]
-dev = ["httpx>=0.28,<1", "pytest>=8.3", "ruff>=0.8"]
+dashboard = ["requests>=2.32,<3", "streamlit>=1.42,<2"]
+dev = [
+  "httpx>=0.28,<1",
+  "pytest>=8.3",
+  "pytest-cov>=6,<8",
+  "ruff>=0.8",
+]
 
 [project.scripts]
 intelli-churn-train = "intelli_churn.training:main"
+intelli-churn-score = "intelli_churn.batch:main"
+intelli-churn-monitor = "intelli_churn.monitoring:main"
+intelli-churn-demo-data = "intelli_churn.demo_data:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/intelli_churn"]
@@ -32,6 +42,15 @@ packages = ["src/intelli_churn"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.coverage.run]
+source = ["intelli_churn"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 80
 
 [tool.ruff]
 line-length = 100

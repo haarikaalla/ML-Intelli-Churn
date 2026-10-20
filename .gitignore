@@ -6,9 +6,12 @@ __pycache__/
 .ruff_cache/
 .env
 mlflow.db
-artifacts/*.joblib
-artifacts/*.json
+/artifacts/
+/outputs/
 models/*.pkl
 data/*.csv
 dist/
 *.egg-info/
+.coverage
+coverage.xml
+htmlcov/
