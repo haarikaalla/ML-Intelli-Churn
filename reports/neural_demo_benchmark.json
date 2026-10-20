@@ -1,0 +1,31 @@
+{
+  "purpose": "Reproducible architecture smoke benchmark for the five-candidate pipeline",
+  "dataset": {
+    "source": "IntelliChurn deterministic telecom demo generator",
+    "rows": 900,
+    "seed": 42,
+    "churn_rate": 0.172222,
+    "split": {"train": 576, "validation": 144, "test": 180}
+  },
+  "selection": {
+    "criterion": "mean three-fold cross-validation PR-AUC on the training split",
+    "winner": "logistic_regression",
+    "candidates": [
+      {"model": "logistic_regression", "cv_pr_auc_mean": 0.347682, "cv_roc_auc_mean": 0.712344},
+      {"model": "random_forest", "cv_pr_auc_mean": 0.313047, "cv_roc_auc_mean": 0.692713},
+      {"model": "multilayer_perceptron", "cv_pr_auc_mean": 0.312392, "cv_roc_auc_mean": 0.684073},
+      {"model": "shallow_neural_network", "cv_pr_auc_mean": 0.312145, "cv_roc_auc_mean": 0.696779},
+      {"model": "hist_gradient_boosting", "cv_pr_auc_mean": 0.291639, "cv_roc_auc_mean": 0.648942}
+    ]
+  },
+  "held_out_test": {
+    "roc_auc": 0.734575,
+    "pr_auc": 0.398077,
+    "recall": 1.0,
+    "precision": 0.189024,
+    "brier_score": 0.129304,
+    "decision_threshold": 0.08
+  },
+  "reproduction": "intelli-churn-demo-data --rows 900 --seed 42 && intelli-churn-train data/demo_telco_churn.csv --cv-folds 3",
+  "disclaimer": "Synthetic smoke benchmark for implementation verification, not a production performance claim."
+}

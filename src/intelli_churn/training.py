@@ -25,7 +25,7 @@ from .artifacts import ModelBundle, ModelRegistry, fingerprint_file, generated_v
 from .config import TrainingConfig
 from .data_quality import profile_dataset
 from .features import MODEL_FEATURES, TARGET, validate_training_frame
-from .modeling import build_pipeline, candidate_estimators
+from .modeling import build_pipeline, candidate_architectures, candidate_estimators
 from .monitoring import build_reference_profile
 
 
@@ -90,6 +90,7 @@ def _candidate_selection(X, y, config: TrainingConfig):
     reports: list[dict[str, Any]] = []
     pipelines = {}
     scoring = {"pr_auc": "average_precision", "roc_auc": "roc_auc"}
+    architectures = candidate_architectures()
     for name, estimator in candidate_estimators(config.random_state).items():
         pipeline = build_pipeline(estimator)
         results = cross_validate(pipeline, X, y, cv=folds, scoring=scoring, n_jobs=1)
@@ -99,6 +100,8 @@ def _candidate_selection(X, y, config: TrainingConfig):
                 "cv_pr_auc_mean": round(float(results["test_pr_auc"].mean()), 6),
                 "cv_pr_auc_std": round(float(results["test_pr_auc"].std()), 6),
                 "cv_roc_auc_mean": round(float(results["test_roc_auc"].mean()), 6),
+                "fit_seconds_mean": round(float(results["fit_time"].mean()), 4),
+                **architectures[name],
             }
         )
         pipelines[name] = pipeline

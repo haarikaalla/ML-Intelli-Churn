@@ -1,7 +1,9 @@
 import numpy as np
 import pandas as pd
+from sklearn.neural_network import MLPClassifier
 
 from intelli_churn.features import CATEGORICAL_FEATURES, NUMERIC_FEATURES
+from intelli_churn.modeling import candidate_architectures, candidate_estimators
 from intelli_churn.monitoring import population_stability_index
 from intelli_churn.training import train_and_evaluate
 
@@ -56,3 +58,15 @@ def test_missing_schema_fails_fast():
         assert "Contract" in str(exc)
     else:
         raise AssertionError("missing feature should fail")
+
+
+def test_neural_candidates_have_distinct_depth_and_early_stopping():
+    estimators = candidate_estimators(random_state=11)
+    shallow = estimators["shallow_neural_network"]
+    deep = estimators["multilayer_perceptron"]
+    assert isinstance(shallow, MLPClassifier)
+    assert isinstance(deep, MLPClassifier)
+    assert shallow.hidden_layer_sizes == (24,)
+    assert deep.hidden_layer_sizes == (64, 32, 16)
+    assert shallow.early_stopping and deep.early_stopping
+    assert candidate_architectures()["multilayer_perceptron"]["depth"] == 3

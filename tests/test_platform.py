@@ -43,7 +43,11 @@ def test_training_selects_calibrates_and_reports_decision_metrics(trained):
     bundle, report = trained
     assert hasattr(bundle.estimator, "predict_proba")
     assert 0.05 <= bundle.threshold <= 0.90
-    assert len(bundle.candidate_scores) == 3
+    assert len(bundle.candidate_scores) == 5
+    assert all(
+        {"family", "architecture", "fit_seconds_mean"}.issubset(candidate)
+        for candidate in bundle.candidate_scores
+    )
     assert {"roc_auc", "pr_auc", "recall", "brier_score", "estimated_savings"}.issubset(
         bundle.metrics
     )
@@ -51,6 +55,8 @@ def test_training_selects_calibrates_and_reports_decision_metrics(trained):
         "logistic_regression",
         "random_forest",
         "hist_gradient_boosting",
+        "shallow_neural_network",
+        "multilayer_perceptron",
     }
 
 

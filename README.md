@@ -15,7 +15,7 @@ This is deliberately more than a notebook or prediction page. The same serialize
 
 ## Verified benchmark
 
-The project's original 7,043-row Telco churn dataset was evaluated with a fixed random seed, a 64%/16%/20% stratified train/validation/test design, five-fold model selection on the training split, threshold selection on validation only, and one final evaluation on the untouched test split. The raw CSV is intentionally excluded from the final repository; its SHA-256 lineage prefix and measured report are retained without republishing third-party data.
+The project's original 7,043-row Telco churn dataset was evaluated with a fixed random seed, a 64%/16%/20% stratified train/validation/test design, five-fold model selection on the training split, threshold selection on validation only, and one final evaluation on the untouched test split. The raw CSV is intentionally excluded from the final repository; its SHA-256 lineage prefix and measured report are retained without republishing third-party data. That retained report records the original three-model run; every new training run now compares **five** architectures, including the shallow neural network and deep MLP described below.
 
 | Held-out result | Value |
 | --- | ---: |
@@ -28,6 +28,24 @@ The project's original 7,043-row Telco churn dataset was evaluated with a fixed 
 | Selected model | **Calibrated logistic regression** |
 
 The cost-aware threshold produced an estimated **90.21% reduction in decision cost** relative to taking no retention action, under the explicit example assumptions of 500 units per missed churner, 15 per contacted customer, and a minimum 45% recall constraint. This is a scenario estimate—not realized revenue or a production guarantee. Change the costs to match an actual business before using the result for decisions. Full reproducible results are stored in [`reports/reference_benchmark.json`](reports/reference_benchmark.json).
+
+## Binary classification architecture lab
+
+One command now evaluates classical machine learning and neural networks under the same leakage-safe contract:
+
+| Candidate | Architecture | Role in the comparison |
+| --- | --- | --- |
+| Logistic regression | scaled features → sigmoid probability | interpretable linear baseline |
+| Random forest | 240 balanced trees → probability average | bagged non-linear baseline |
+| Histogram gradient boosting | sequential histogram trees → logistic loss | strong tabular learner |
+| Shallow neural network | input → dense 24 ReLU → sigmoid | compact non-linear neural baseline |
+| Multilayer perceptron | input → 64 ReLU → 32 ReLU → 16 ReLU → sigmoid | higher-capacity deep comparison |
+
+Both neural candidates use balanced sample weights, L2 regularization, deterministic initialization and validation-based early stopping. Neural models are not assumed to win: mean stratified cross-validation PR-AUC promotes the best minority-class ranker, regardless of family. The selected pipeline is then calibrated before validation-only threshold optimization and one final untouched-test evaluation.
+
+The Streamlit **Architecture comparison** tab makes this experiment visible: it presents all five model cards, CV PR-AUC, CV ROC-AUC, fold variability, mean fit time, the selected winner and simple diagrams for both neural designs.
+
+A deterministic 900-customer smoke benchmark verifies the complete five-model path in [`reports/neural_demo_benchmark.json`](reports/neural_demo_benchmark.json). On that synthetic sample, the deep MLP reached **0.3124 CV PR-AUC** and the shallow network reached **0.3121**, close to the random forest at **0.3130**; logistic regression remained the honest winner at **0.3477**. These are implementation-verification results, not production-performance claims.
 
 ## What problem it solves
 
@@ -54,7 +72,7 @@ The architecture is organized around people and decisions—not just infrastruct
 1. **Customer reality:** consented relationship, billing and service signals describe the customer's experience.
 2. **Quality before modeling:** the pipeline rejects incompatible schemas, bad labels, duplicates and invalid values before learning.
 3. **Shared business features:** one transformer creates service-count, spend-ratio, tenure and contract indicators for both training and inference.
-4. **Evidence-based selection:** three model families compete under stratified cross-validation; mean PR-AUC selects the candidate.
+4. **Evidence-based selection:** five classical and neural architectures compete under stratified cross-validation; mean PR-AUC selects the candidate.
 5. **Probability and policy are separate:** calibration improves the risk estimate, while validation-only cost optimization chooses when the business should act.
 6. **Governed promotion:** the approved bundle stores the complete pipeline, threshold, metrics, dataset fingerprint and drift baseline under an immutable version.
 7. **One decision layer, multiple workflows:** FastAPI supports real-time applications, bulk scoring, model inspection and operational telemetry; Streamlit gives specialists a prioritized work queue.
@@ -72,7 +90,7 @@ The solid path represents the live decision flow. The purple feedback path repre
 | --- | --- | --- |
 | Data quality | Required fields, numeric coercion, invalid labels, negative-value guard, duplicate IDs, missingness profile | Fails early and reports the condition of each training run |
 | Domain features | spend/tenure ratios, service count, tenure band, contract and fiber indicators | Encodes customer-lifecycle behavior consistently |
-| Model selection | Logistic regression, random forest and histogram gradient boosting with stratified CV | Selects by mean PR-AUC instead of intuition |
+| Model selection | Logistic regression, random forest, gradient boosting, shallow neural network and deep MLP | Compares five binary classifiers by stratified mean PR-AUC |
 | Calibration | `CalibratedClassifierCV` with sigmoid calibration | Makes risk scores more useful for prioritization |
 | Decision policy | Validation-only threshold search with configurable FP/FN/action costs | Separates model quality from business action policy |
 | Evaluation | ROC-AUC, PR-AUC, precision, recall, F1, Brier, confusion matrix and cost scenario | Covers ranking, minority detection, calibration and impact |
@@ -141,7 +159,7 @@ uvicorn intelli_churn.api:app --reload
 streamlit run dashboard/app.py
 ```
 
-Upload a compatible CSV to score customers, inspect the prioritized high-risk segment and download the full retention queue.
+Use the performance tab to inspect the held-out model card, the architecture tab to compare all binary classifiers, and the queue tab to score a compatible CSV, inspect the prioritized high-risk segment and download the full result.
 
 ## Prediction API
 
@@ -225,19 +243,20 @@ The API runs at port 8000 and the dashboard at port 8501. The API image is multi
 ## Testing and CI
 
 ```bash
-ruff check src/intelli_churn tests
+ruff check src/intelli_churn tests dashboard
 pytest --cov=intelli_churn --cov-report=term-missing
 docker build --target runtime -t intelli-churn:test .
 ```
 
-Tests use deterministic synthetic data and cover schema failure, full training, model registry round trips, prediction contracts, drift detection and API health. GitHub Actions validates Python 3.11 and 3.12, publishes coverage output and verifies the container build.
+Tests use deterministic synthetic telecom data and cover both neural architectures, schema failure, five-model selection, full training, model registry round trips, prediction contracts, drift detection and API health. GitHub Actions validates Python 3.11 and 3.12, publishes coverage output and verifies the container build.
 
 ## Repository map
 
 ```text
 .
 ├── dashboard/app.py                 # retention operations console
-├── reports/reference_benchmark.json # reproducible dataset benchmark
+├── reports/reference_benchmark.json # original 7,043-row dataset benchmark
+├── reports/neural_demo_benchmark.json # reproducible five-model smoke benchmark
 ├── src/intelli_churn/
 │   ├── api.py                       # typed API and observability
 │   ├── artifacts.py                 # versioned model registry
