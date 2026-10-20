@@ -43,7 +43,7 @@ One command now evaluates classical machine learning and neural networks under t
 
 Both neural candidates use balanced sample weights, L2 regularization, deterministic initialization and validation-based early stopping. Neural models are not assumed to win: mean stratified cross-validation PR-AUC promotes the best minority-class ranker, regardless of family. The selected pipeline is then calibrated before validation-only threshold optimization and one final untouched-test evaluation.
 
-The Streamlit **Architecture comparison** tab makes this experiment visible: it presents all five model cards, CV PR-AUC, CV ROC-AUC, fold variability, mean fit time, the selected winner and simple diagrams for both neural designs.
+The presentation-ready Streamlit console makes this experiment visible. Its **Project story** tab gives a faculty-friendly problem-to-impact narrative, **Live prediction** sends one customer through the real API, **Performance overview** explains held-out evidence, **Architecture comparison** presents all five candidates, and **Retention queue** turns batch scores into an operational output.
 
 A deterministic 900-customer smoke benchmark verifies the complete five-model path in [`reports/neural_demo_benchmark.json`](reports/neural_demo_benchmark.json). On that synthetic sample, the deep MLP reached **0.3124 CV PR-AUC** and the shallow network reached **0.3121**, close to the random forest at **0.3130**; logistic regression remained the honest winner at **0.3477**. These are implementation-verification results, not production-performance claims.
 
@@ -159,7 +159,15 @@ uvicorn intelli_churn.api:app --reload
 streamlit run dashboard/app.py
 ```
 
-Use the performance tab to inspect the held-out model card, the architecture tab to compare all binary classifiers, and the queue tab to score a compatible CSV, inspect the prioritized high-risk segment and download the full result.
+For a presentation, follow the guided path shown in the sidebar:
+
+1. **Project story:** introduce the business problem, data signals, end-to-end flow and responsible-use boundary.
+2. **Live prediction:** change one customer's details and call the deployed FastAPI prediction contract.
+3. **Performance overview:** explain held-out ROC-AUC, PR-AUC, recall, calibration, confusion outcomes and the illustrative cost scenario.
+4. **Architecture comparison:** compare all five binary classifiers and explain why cross-validated PR-AUC—not model complexity—selects the winner.
+5. **Retention queue:** upload compatible customer data, score it in API-sized batches and download a prioritized action file.
+
+The console clearly distinguishes evidence from the active model artifact from illustrative or synthetic-demo results. It should support a project explanation, but the presenter should still understand the dataset, validation design, metrics and limitations instead of treating the UI alone as evidence.
 
 ## Prediction API
 

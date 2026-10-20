@@ -47,6 +47,13 @@ def load_model_card() -> dict:
     return response.json()
 
 
+def predict_customer(payload: dict) -> dict:
+    """Request one validated decision from the production inference path."""
+    response = requests.post(f"{API_URL}/v1/predict", json=payload, timeout=15)
+    response.raise_for_status()
+    return response.json()
+
+
 model = None
 try:
     model = load_model_card()
@@ -56,9 +63,188 @@ except (requests.RequestException, KeyError, ValueError):
         "live metrics, architecture comparison and scoring."
     )
 
-overview_tab, comparison_tab, queue_tab = st.tabs(
-    ["Performance overview", "Architecture comparison", "Retention queue"]
+story_tab, prediction_tab, overview_tab, comparison_tab, queue_tab = st.tabs(
+    [
+        "Project story",
+        "Live prediction",
+        "Performance overview",
+        "Architecture comparison",
+        "Retention queue",
+    ]
 )
+
+with story_tab:
+    st.subheader("From customer signals to a governed retention decision")
+    st.write(
+        "Telecom churn is costly because the business often discovers dissatisfaction only after a "
+        "customer leaves. IntelliChurn identifies customers who may need attention, explains the "
+        "evidence behind the deployed model and converts risk into a reviewable retention action."
+    )
+
+    challenge, intelligence, outcome = st.columns(3)
+    with challenge:
+        st.markdown(
+            """<div class="model-card"><strong>1 · Business challenge</strong>
+            <h4>Find preventable churn early</h4><p>Use relationship, service, contract and billing
+            signals to rank customers before their next renewal decision.</p></div>""",
+            unsafe_allow_html=True,
+        )
+    with intelligence:
+        st.markdown(
+            """<div class="model-card"><strong>2 · ML intelligence</strong>
+            <h4>Compare, calibrate, validate</h4><p>Five classical and neural architectures compete
+            under the same leakage-safe cross-validation and held-out evaluation contract.</p></div>""",
+            unsafe_allow_html=True,
+        )
+    with outcome:
+        st.markdown(
+            """<div class="model-card"><strong>3 · Human decision</strong>
+            <h4>Prioritize the right action</h4><p>Calibrated risk, an optimized threshold and an
+            action recommendation support—not replace—the retention specialist.</p></div>""",
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("#### End-to-end system flow")
+    st.info(
+        "Customer data → schema and quality checks → shared feature pipeline → five-model "
+        "comparison → probability calibration → cost-aware threshold → versioned model → "
+        "FastAPI → Streamlit decision console → monitored human action"
+    )
+
+    evidence, walkthrough = st.columns([1, 1.25])
+    with evidence:
+        st.markdown("#### Evidence from the active model")
+        if model:
+            selected = model["candidate_scores"][0]
+            st.write(f"**Selected architecture:** {selected['model'].replace('_', ' ').title()}")
+            st.write(f"**Held-out customers:** {model['metrics']['test_rows']:,}")
+            st.write(f"**Held-out PR-AUC:** {model['metrics']['pr_auc']:.3f}")
+            st.write(f"**Churn recall:** {model['metrics']['recall']:.1%}")
+            st.caption(
+                "These values come from the currently loaded model artifact. Results from generated "
+                "demo data demonstrate the workflow and must not be presented as real-world impact."
+            )
+        else:
+            st.write("Start the API to load evidence from the active model artifact.")
+    with walkthrough:
+        st.markdown("#### A clear three-minute faculty walkthrough")
+        st.markdown(
+            """
+            1. **Problem:** retention teams need an early, prioritized signal—not just a yes/no label.
+            2. **Method:** show that five models receive the same features and validation procedure.
+            3. **Evidence:** explain PR-AUC, recall, calibration and the untouched test set.
+            4. **Demo:** change one customer's details and request a live prediction through the API.
+            5. **Engineering:** finish with model versioning, drift checks, tests, CI and containers.
+            """
+        )
+
+    with st.expander("What information does the model use?"):
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    ("Relationship", "tenure, partner, dependents, senior-citizen indicator"),
+                    ("Services", "phone, internet, security, backup, support and streaming"),
+                    ("Commercial", "contract term, billing method and payment method"),
+                    ("Spend", "monthly and total charges"),
+                ],
+                columns=["Signal group", "Examples"],
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+        st.caption(
+            "The model does not use customer names. In a real deployment, consent, access controls, "
+            "fairness review and intervention auditing remain required."
+        )
+
+with prediction_tab:
+    st.subheader("Score one customer through the live API")
+    st.caption(
+        "This form uses the same strict data contract and serialized feature pipeline as batch scoring."
+    )
+    with st.form("single_customer_prediction"):
+        relationship, services, commercial = st.columns(3)
+        with relationship:
+            st.markdown("##### Customer relationship")
+            gender = st.selectbox("Gender", ["Female", "Male"])
+            senior = st.selectbox("Senior citizen", ["No", "Yes"])
+            partner = st.selectbox("Partner", ["Yes", "No"])
+            dependents = st.selectbox("Dependents", ["No", "Yes"])
+            tenure = st.slider("Tenure (months)", 0, 72, 12)
+        with services:
+            st.markdown("##### Services")
+            phone = st.selectbox("Phone service", ["Yes", "No"])
+            multiple_lines = st.selectbox(
+                "Multiple lines", ["No", "Yes"] if phone == "Yes" else ["No phone service"]
+            )
+            internet = st.selectbox("Internet service", ["Fiber optic", "DSL", "No"])
+            internet_options = ["No", "Yes"] if internet != "No" else ["No internet service"]
+            security = st.selectbox("Online security", internet_options)
+            backup = st.selectbox("Online backup", internet_options)
+            protection = st.selectbox("Device protection", internet_options)
+            support = st.selectbox("Tech support", internet_options)
+            streaming_tv = st.selectbox("Streaming TV", internet_options)
+            streaming_movies = st.selectbox("Streaming movies", internet_options)
+        with commercial:
+            st.markdown("##### Contract and billing")
+            contract = st.selectbox("Contract", ["Month-to-month", "One year", "Two year"])
+            paperless = st.selectbox("Paperless billing", ["Yes", "No"])
+            payment = st.selectbox(
+                "Payment method",
+                [
+                    "Electronic check",
+                    "Mailed check",
+                    "Bank transfer (automatic)",
+                    "Credit card (automatic)",
+                ],
+            )
+            monthly = st.number_input("Monthly charges", min_value=0.0, value=75.0, step=5.0)
+            total = st.number_input(
+                "Total charges", min_value=0.0, value=float(monthly * max(tenure, 1)), step=25.0
+            )
+        submitted = st.form_submit_button(
+            "Predict churn risk", type="primary", disabled=model is None, width="stretch"
+        )
+
+    if submitted:
+        payload = {
+            "gender": gender,
+            "SeniorCitizen": int(senior == "Yes"),
+            "Partner": partner,
+            "Dependents": dependents,
+            "tenure": tenure,
+            "PhoneService": phone,
+            "MultipleLines": multiple_lines if phone == "Yes" else "No phone service",
+            "InternetService": internet,
+            "OnlineSecurity": security if internet != "No" else "No internet service",
+            "OnlineBackup": backup if internet != "No" else "No internet service",
+            "DeviceProtection": protection if internet != "No" else "No internet service",
+            "TechSupport": support if internet != "No" else "No internet service",
+            "StreamingTV": streaming_tv if internet != "No" else "No internet service",
+            "StreamingMovies": streaming_movies if internet != "No" else "No internet service",
+            "Contract": contract,
+            "PaperlessBilling": paperless,
+            "PaymentMethod": payment,
+            "MonthlyCharges": monthly,
+            "TotalCharges": total,
+        }
+        try:
+            prediction = predict_customer(payload)
+            probability = float(prediction["churn_probability"])
+            result, risk, threshold = st.columns(3)
+            result.metric("Decision", prediction["prediction"].upper())
+            risk.metric("Churn probability", f"{probability:.1%}")
+            threshold.metric("Decision threshold", f"{prediction['decision_threshold']:.1%}")
+            st.progress(probability, text=f"Risk band: {prediction['risk_band'].upper()}")
+            st.success(f"Recommended action: {prediction['recommended_action']}")
+            st.caption(
+                f"Served by model {prediction['model_version']}. This is decision support, not an "
+                "automatic customer-treatment decision."
+            )
+            with st.expander("Show API response"):
+                st.json(prediction)
+        except (requests.RequestException, KeyError, ValueError) as exc:
+            st.error(f"Prediction could not be completed. Check that the API is running. Details: {exc}")
 
 with overview_tab:
     if model:
@@ -72,6 +258,11 @@ with overview_tab:
         st.caption(
             f"Model {model['model_version']} · operating threshold {model['threshold']:.2f} · "
             "illustrative cost scenario, not guaranteed realized savings"
+        )
+        st.caption(
+            "ROC-AUC measures overall ranking, PR-AUC emphasizes the churn minority class, recall "
+            "shows how many churners were found, and Brier score measures probability accuracy "
+            "where lower is better."
         )
 
         left, right = st.columns([1.15, 1])
@@ -199,3 +390,6 @@ with st.sidebar:
         st.write(f"**Version**  `{model['model_version']}`")
         st.write(f"**Candidates compared**  {len(model['candidate_scores'])}")
         st.write(f"**Selected**  {model['candidate_scores'][0]['family']}")
+    st.divider()
+    st.caption("Suggested demo path")
+    st.write("Project story → Live prediction → Performance → Architectures")
