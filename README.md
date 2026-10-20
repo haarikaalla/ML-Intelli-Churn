@@ -45,39 +45,22 @@ Each prediction returns a probability, decision, risk band, recommended action, 
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    subgraph Build[Reproducible ML build]
-        A[Telco CSV] --> B[Schema + quality gate]
-        B --> C[Stratified train / validation / test]
-        C --> D[Business feature engineering]
-        D --> E[Impute + scale + one-hot]
-        E --> F{5-fold comparison}
-        F --> G[Logistic regression]
-        F --> H[Random forest]
-        F --> I[Histogram gradient boosting]
-        G & H & I --> J[Best PR-AUC model]
-        J --> K[Sigmoid calibration]
-        K --> L[Cost-aware threshold]
-        L --> M[(Versioned model bundle)]
-    end
+<p align="center">
+  <img src="docs/intellichurn-architecture.svg" alt="Human-centered IntelliChurn architecture showing customer signals, governed ML training, model delivery, retention specialists and the monitored learning loop" width="100%" />
+</p>
 
-    subgraph Serve[Decision serving]
-        M --> N[FastAPI]
-        N --> O[Single prediction]
-        N --> P[Batch prediction]
-        N --> Q[Model card]
-        N --> R[Prometheus metrics]
-        N --> S[Streamlit operations console]
-    end
+The architecture is organized around people and decisions—not just infrastructure:
 
-    subgraph Monitor[Monitoring]
-        M --> T[Training reference profile]
-        U[Current customer data] --> V[PSI + JS divergence]
-        T --> V
-        V --> W[Stable / warning / alert report]
-    end
-```
+1. **Customer reality:** consented relationship, billing and service signals describe the customer's experience.
+2. **Quality before modeling:** the pipeline rejects incompatible schemas, bad labels, duplicates and invalid values before learning.
+3. **Shared business features:** one transformer creates service-count, spend-ratio, tenure and contract indicators for both training and inference.
+4. **Evidence-based selection:** three model families compete under stratified cross-validation; mean PR-AUC selects the candidate.
+5. **Probability and policy are separate:** calibration improves the risk estimate, while validation-only cost optimization chooses when the business should act.
+6. **Governed promotion:** the approved bundle stores the complete pipeline, threshold, metrics, dataset fingerprint and drift baseline under an immutable version.
+7. **One decision layer, multiple workflows:** FastAPI supports real-time applications, bulk scoring, model inspection and operational telemetry; Streamlit gives specialists a prioritized work queue.
+8. **Human action and learning:** a retention specialist reviews context, chooses an appropriate intervention and records outcomes. Drift, calibration, service health and delayed labels inform a governed retraining decision—there is no silent automatic retraining.
+
+The solid path represents the live decision flow. The purple feedback path represents monitored learning from real outcomes back into the next reviewed training cycle.
 
 ### Training-serving contract
 
