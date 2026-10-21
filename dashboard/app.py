@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pandas as pd
 import requests
 import streamlit as st
 
+from intelli_churn.dashboard_runtime import DashboardRuntime
+
 API_URL = os.environ.get("API_URL", "http://localhost:8000")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+MODEL_REGISTRY = Path(
+    os.environ.get("MODEL_REGISTRY", PROJECT_ROOT / "artifacts" / "registry")
+)
 
 st.set_page_config(page_title="IntelliChurn", page_icon="◉", layout="wide")
 st.markdown(
@@ -40,28 +47,29 @@ st.markdown(
 )
 
 
-@st.cache_data(ttl=30)
-def load_model_card() -> dict:
-    response = requests.get(f"{API_URL}/v1/model", timeout=10)
-    response.raise_for_status()
-    return response.json()
+@st.cache_resource(ttl=30, show_spinner=False)
+def load_runtime(api_url: str, registry: str) -> DashboardRuntime:
+    """Prefer the service API and fall back to a persistent standalone demo model."""
+    try:
+        return DashboardRuntime.from_api(api_url)
+    except (requests.RequestException, KeyError, ValueError):
+        return DashboardRuntime.from_local_registry(registry)
 
 
-def predict_customer(payload: dict) -> dict:
-    """Request one validated decision from the production inference path."""
-    response = requests.post(f"{API_URL}/v1/predict", json=payload, timeout=15)
-    response.raise_for_status()
-    return response.json()
-
-
-model = None
+runtime = None
 try:
-    model = load_model_card()
-except (requests.RequestException, KeyError, ValueError):
-    st.warning(
-        "The model service is not ready. Train a model and start the FastAPI service to unlock "
-        "live metrics, architecture comparison and scoring."
-    )
+    with st.spinner("Connecting to the model runtime…"):
+        runtime = load_runtime(API_URL, str(MODEL_REGISTRY))
+    model = runtime.model_card
+    if runtime.source == "local-demo":
+        st.info(
+            "Standalone demo mode is active. The dashboard created or loaded a local synthetic "
+            "demo model, so every tab and prediction works without starting FastAPI. Start the "
+            "API when you want to demonstrate the production service path."
+        )
+except (OSError, RuntimeError, TypeError, ValueError) as exc:
+    model = None
+    st.error(f"The dashboard could not initialize its model runtime: {exc}")
 
 story_tab, prediction_tab, overview_tab, comparison_tab, queue_tab = st.tabs(
     [
@@ -158,7 +166,7 @@ with story_tab:
         )
 
 with prediction_tab:
-    st.subheader("Score one customer through the live API")
+    st.subheader("Score one customer through the live model runtime")
     st.caption(
         "This form uses the same strict data contract and serialized feature pipeline as batch scoring."
     )
@@ -229,7 +237,7 @@ with prediction_tab:
             "TotalCharges": total,
         }
         try:
-            prediction = predict_customer(payload)
+            prediction = runtime.predict_one(payload)
             probability = float(prediction["churn_probability"])
             result, risk, threshold = st.columns(3)
             result.metric("Decision", prediction["prediction"].upper())
@@ -241,7 +249,7 @@ with prediction_tab:
                 f"Served by model {prediction['model_version']}. This is decision support, not an "
                 "automatic customer-treatment decision."
             )
-            with st.expander("Show API response"):
+            with st.expander("Show model response"):
                 st.json(prediction)
         except (requests.RequestException, KeyError, ValueError) as exc:
             st.error(f"Prediction could not be completed. Check that the API is running. Details: {exc}")
@@ -348,24 +356,19 @@ with comparison_tab:
 
 with queue_tab:
     st.subheader("Build an actionable retention queue")
-    st.caption("Upload contract-compatible customer data. Scoring is sent to the versioned FastAPI service.")
+    st.caption(
+        "Upload contract-compatible customer data. Scoring uses the connected FastAPI service or "
+        "the same versioned local model in standalone mode."
+    )
     uploaded = st.file_uploader("Upload customer CSV", type="csv")
     if uploaded:
         customers = pd.read_csv(uploaded)
         st.write(f"Loaded **{len(customers):,}** customers")
         if st.button("Create retention queue", type="primary", disabled=model is None):
             records = customers.to_dict(orient="records")
-            responses = []
             progress = st.progress(0, text="Scoring customers…")
-            for offset in range(0, len(records), 500):
-                response = requests.post(
-                    f"{API_URL}/v1/predict/batch",
-                    json={"customers": records[offset : offset + 500]},
-                    timeout=60,
-                )
-                response.raise_for_status()
-                responses.extend(response.json()["predictions"])
-                progress.progress(min((offset + 500) / len(records), 1.0), text="Scoring customers…")
+            responses = runtime.predict_many(records)
+            progress.progress(1.0, text="Scoring complete")
             progress.empty()
             result = pd.concat([customers.reset_index(drop=True), pd.DataFrame(responses)], axis=1)
             high_risk = result[result["risk_band"].eq("high")].sort_values(
@@ -385,7 +388,12 @@ with queue_tab:
 with st.sidebar:
     st.markdown("### IntelliChurn")
     st.caption("Model governance console")
-    st.write("● API connected" if model else "○ API unavailable")
+    if runtime and runtime.source == "api":
+        st.write("● FastAPI connected")
+    elif runtime:
+        st.write("● Standalone demo model active")
+    else:
+        st.write("○ Model runtime unavailable")
     if model:
         st.write(f"**Version**  `{model['model_version']}`")
         st.write(f"**Candidates compared**  {len(model['candidate_scores'])}")

@@ -118,7 +118,22 @@ pip install -e '.[dev,dashboard]'
 
 Python 3.11 or newer is required.
 
-### 2. Train and register a model
+### 2. Open the dashboard immediately
+
+```bash
+streamlit run dashboard/app.py
+```
+
+Open <http://localhost:8501>. The dashboard first tries the FastAPI service. If the API or a
+registered model is not available, it automatically creates a deterministic synthetic demo model
+and switches to **standalone demo mode**. Live prediction, performance, architecture comparison and
+retention-queue scoring therefore work from this single command. The generated demo artifact is
+stored under the ignored `artifacts/registry/` directory and reused on later runs.
+
+Synthetic results demonstrate the complete software workflow; they are not evidence of real telecom
+impact.
+
+### 3. Train and register a model with your data
 
 ```bash
 intelli-churn-train path/to/telco-churn.csv
@@ -142,7 +157,7 @@ intelli-churn-demo-data --rows 2500
 intelli-churn-train data/demo_telco_churn.csv
 ```
 
-### 3. Start the API
+### 4. Start the production-style API
 
 ```bash
 uvicorn intelli_churn.api:app --reload
@@ -153,11 +168,14 @@ uvicorn intelli_churn.api:app --reload
 - model card: <http://127.0.0.1:8000/v1/model>
 - Prometheus: <http://127.0.0.1:8000/metrics>
 
-### 4. Open the operations console
+### 5. Open the operations console against FastAPI
 
 ```bash
 streamlit run dashboard/app.py
 ```
+
+When FastAPI is reachable, the dashboard detects it automatically and changes from standalone demo
+mode to the service-backed production path. You can also set `API_URL` to connect to another host.
 
 For a presentation, follow the guided path shown in the sidebar:
 
