@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-import requests
-
 from .artifacts import ModelBundle, ModelRegistry
 from .config import TrainingConfig
 from .contracts import CustomerFeatures
@@ -38,6 +36,9 @@ class DashboardRuntime:
 
     @classmethod
     def from_api(cls, api_url: str, timeout: float = 3.0) -> DashboardRuntime:
+        # requests ships with the optional "dashboard" extra only.
+        import requests
+
         response = requests.get(f"{api_url.rstrip('/')}/v1/model", timeout=timeout)
         response.raise_for_status()
         return cls(source="api", model_card=response.json(), api_url=api_url.rstrip("/"))
@@ -71,6 +72,8 @@ class DashboardRuntime:
 
     def predict_one(self, payload: dict) -> dict:
         if self.source == "api":
+            import requests
+
             response = requests.post(f"{self.api_url}/v1/predict", json=payload, timeout=15)
             response.raise_for_status()
             return response.json()
@@ -84,6 +87,8 @@ class DashboardRuntime:
         for offset in range(0, len(records), batch_size):
             batch = records[offset : offset + batch_size]
             if self.source == "api":
+                import requests
+
                 response = requests.post(
                     f"{self.api_url}/v1/predict/batch",
                     json={"customers": batch},
